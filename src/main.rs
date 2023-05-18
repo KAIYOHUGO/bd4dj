@@ -54,7 +54,7 @@ fn convert(bpm: u16, map: game::GameMap) -> Result<editor::EditorMap> {
     let mut notes = vec![];
 
     for (id, note_data) in map.note_data_list.iter().enumerate() {
-        let timed_position = convert_to_timed_position(bpm, note_data)?;
+        let mut timed_position = convert_to_timed_position(bpm, note_data)?;
         let note = match note_data.note_type {
             game::NoteType::Tap1 | game::NoteType::Tap2 => editor::Note::Single(timed_position),
             game::NoteType::ScratchRight | game::NoteType::ScratchLeft => {
@@ -64,8 +64,7 @@ fn convert(bpm: u16, map: game::GameMap) -> Result<editor::EditorMap> {
             | game::NoteType::LongStart
             | game::NoteType::LongEnd
             | game::NoteType::StopStart
-            | game::NoteType::StopEnd => {
-                dbg!(note_data.note_type);
+            | game::NoteType::StopEnd => 'ret: {
                 let slide_id = if let Some(mut slide) = next_id_map.remove(&id) {
                     let id = slide.id;
                     slide.notes.push(timed_position.id);
@@ -76,17 +75,18 @@ fn convert(bpm: u16, map: game::GameMap) -> Result<editor::EditorMap> {
                     }
                     id
                 } else {
-                    let id = rng.gen();
-                    let slide = editor::Slide {
-                        id,
-                        notes: vec![timed_position.id],
-                        flickend: false,
-                    };
-                    if note_data.next_id != 0 {
-                        next_id_map.insert(note_data.next_id, slide);
-                    } else {
-                        slides.push(slide);
+                    if note_data.next_id == 0 {
+                        break 'ret editor::Note::Flick(timed_position);
                     }
+                    let id = rng.gen();
+                    next_id_map.insert(
+                        note_data.next_id,
+                        editor::Slide {
+                            id,
+                            notes: vec![timed_position.id],
+                            flickend: false,
+                        },
+                    );
                     id
                 };
                 editor::Note::Slide(editor::SlideNote {
